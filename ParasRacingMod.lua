@@ -146,3 +146,7 @@ ModUtil.WrapBaseFunction("CalcMetaProgressRatio", function( baseFunc, run )
 
   return baseFunc( run )
 end, ParasRacingMod)
+
+ModUtil.BaseOverride("IsShrinePointDoorEligible", function( ... )
+  return false
+end, ParasRacingMod)
