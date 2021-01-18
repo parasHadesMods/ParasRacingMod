@@ -65,11 +65,6 @@ ModUtil.WrapBaseFunction("StartRoom", function(baseFunc, ...)
     ParasRacingMod.UpgradableGodTraitCount = ParasRacingMod.UpgradableGodTraitCount + 1
   end
   ParasRacingMod.Next = {}
-  for k, v in pairs(CurrentRun.RewardStores) do
-    for kk, vv in pairs(v) do
-      print(kk, vv.Name)
-    end
-  end
   return baseFunc(...)
 end, ParasRacingMod)
 
@@ -122,6 +117,7 @@ end, ParasRacingMod)
 
 ModUtil.WrapBaseFunction("ChooseRoomReward", function(baseFunc, run, room, rewardStoreName, rewardsChosen, args)
   ParasRacingMod.Current.RewardsChosen = rewardsChosen
+  ParasRacingMod.Next.RewardStoreName = rewardStoreName
   local rewardType =  baseFunc(run, room, rewardStoreName, rewardsChosen, args)
   if rewardType == "Boon" then
     ParasRacingMod.Next.HasBoon = true
@@ -141,4 +137,12 @@ ModUtil.WrapBaseFunction("AssignRoomToExitDoor", function(baseFunc, door, room)
       extraRoom.NeedsReward = false
     end
   end
+end, ParasRacingMod)
+
+ModUtil.WrapBaseFunction("CalcMetaProgressRatio", function( baseFunc, run )
+  if ParasRacingMod.Current.RewardStoreName then
+    run.CurrentRoom.RewardStoreName = ParasRacingMod.Current.RewardStoreName
+  end
+
+  return baseFunc( run )
 end, ParasRacingMod)
