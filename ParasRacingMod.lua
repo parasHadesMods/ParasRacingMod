@@ -3,6 +3,7 @@ ModUtil.RegisterMod("ParasRacingMod")
 ParasRacingMod.Next = {}
 ParasRacingMod.Current = {}
 ParasRacingMod.UsedRooms = {}
+ParasRacingMod.UpgradableGodTraitCount = 0
 
 ParasRacingMod.NonNormalRooms = {
   RoomSecret01 = true,
@@ -41,11 +42,16 @@ function ParasRacingMod.ExitCount(room)
   return ParasRacingMod.OverrideExitCount[room.Name] or room.NumExits
 end
 
+ModUtil.BaseOverride("UpgradableGodTraitCountAtLeast", function( num )
+  return ParasRacingMod.UpgradableGodTraitCount >= num
+end, ParasRacingMod)
+
 ModUtil.WrapBaseFunction("StartNewRun", function(baseFunc, ...)
   local run = baseFunc(...)
   ParasRacingMod.Next = {}
   ParasRacingMod.Current = {}
   ParasRacingMod.UsedRooms = {}
+  ParasRacingMod.UpgradableGodTraitCount = 0
   return run
 end, ParasRacingMod)
 
@@ -54,9 +60,10 @@ ModUtil.WrapBaseFunction("StartRoom", function(baseFunc, ...)
     table.insert( ParasRacingMod.UsedRooms, ParasRacingMod.Next.Room.Name )
   end
   ParasRacingMod.Current = ParasRacingMod.Next
-  ParasRacingMod.Current.CreatedExits = 0
-  ParasRacingMod.Current.AssignedExits = 0
   ParasRacingMod.Current.ExtraExits = {}
+  if ParasRacingMod.Next.HasBoon then
+    ParasRacingMod.UpgradableGodTraitCount = ParasRacingMod.UpgradableGodTraitCount + 1
+  end
   ParasRacingMod.Next = {}
   for k, v in pairs(CurrentRun.RewardStores) do
     for kk, vv in pairs(v) do
@@ -99,13 +106,15 @@ ModUtil.WrapBaseFunction("CreateRoom", function(baseFunc, roomForDoorData, ...)
   if exitCount > (ParasRacingMod.Next.MaxExits or 0) then
     ParasRacingMod.Next.MaxExits = exitCount
   end
-  ParasRacingMod.Current.CreatedExits = ParasRacingMod.Current.CreatedExits + 1
+  ParasRacingMod.Current.CreatedExits = (ParasRacingMod.Current.CreatedExits or 0) + 1
   if ParasRacingMod.Current.CreatedExits == ParasRacingMod.ExitCount(CurrentRun.CurrentRoom) then
     for i = ParasRacingMod.Current.CreatedExits + 1, (ParasRacingMod.Current.MaxExits or 0) do
       local extraRoomData = ChooseNextRoomData( CurrentRun )
       local extraRoom = CreateRoom( extraRoomData, { SkipChooseReward = true, SkipChooseEncounter = true })
       extraRoom.NeedsReward = true
-      table.insert( ParasRacingMod.Current.ExtraExits, extraRoom )
+      if ParasRacingMod.Current.ExtraExits then
+        table.insert( ParasRacingMod.Current.ExtraExits, extraRoom )
+      end
     end
   end
   return baseFunc(roomForDoorData, ...)
@@ -113,14 +122,18 @@ end, ParasRacingMod)
 
 ModUtil.WrapBaseFunction("ChooseRoomReward", function(baseFunc, run, room, rewardStoreName, rewardsChosen, args)
   ParasRacingMod.Current.RewardsChosen = rewardsChosen
-  return baseFunc(run, room, rewardStoreName, rewardsChosen, args)
+  local rewardType =  baseFunc(run, room, rewardStoreName, rewardsChosen, args)
+  if rewardType == "Boon" then
+    ParasRacingMod.Next.HasBoon = true
+  end
+  return rewardType
 end, ParasRacingMod)
 
 ModUtil.WrapBaseFunction("AssignRoomToExitDoor", function(baseFunc, door, room)
   local r = baseFunc(door, room)
-  ParasRacingMod.Current.AssignedExits = ParasRacingMod.Current.AssignedExits + 1
+  ParasRacingMod.Current.AssignedExits = (ParasRacingMod.Current.AssignedExits or 0) + 1
   if ParasRacingMod.Current.AssignedExits == ParasRacingMod.ExitCount(CurrentRun.CurrentRoom) then
-    for i, extraRoom in pairs( ParasRacingMod.Current.ExtraExits) do
+    for i, extraRoom in pairs( ParasRacingMod.Current.ExtraExits ) do
       extraRoom.RewardStoreName = room.RewardStoreName
       extraRoom.ChosenRewardType = ChooseRoomReward( CurrentRun, extraRoom, extraRoom.RewardStoreName, ParasRacingMod.Current.RewardsChosen)
       SetupRoomReward( CurrentRun, extraRoom, ParasRacingMod.Current.RewardsChosen, { IgnoreForceLootName = extraRoom.IgnoreForceLootName } )
